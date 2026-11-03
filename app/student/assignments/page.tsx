@@ -153,9 +153,24 @@ export default function StudentAssignmentsPage() {
 
       setAssignments(sortedAssignments);
       setSubmissionStatus(nextSubmissionStatus);
-    } catch (loadError) {
+    } catch (loadError: any) {
+      const errorDetails = Object.getOwnPropertyNames(loadError ?? {}).reduce(
+        (details: Record<string, unknown>, key) => {
+          details[key] = loadError[key];
+          return details;
+        },
+        {}
+      );
+
+      console.error("Student assignments loading error:", errorDetails);
+
       const message =
-        loadError instanceof Error ? loadError.message : "Unable to load assignments.";
+        loadError?.message ||
+        loadError?.details ||
+        loadError?.hint ||
+        JSON.stringify(errorDetails) ||
+        "Unable to load assignments.";
+
       setAssignments([]);
       setSubmissionStatus({});
       setError(message);

@@ -1,5 +1,7 @@
+
 "use client";
 
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
@@ -13,7 +15,6 @@ import {
   Settings,
   Users,
 } from "lucide-react";
-import { useEffect, useState } from "react";
 import { normalizeRole } from "@/src/lib/auth";
 import { supabase } from "@/src/lib/supabase/client";
 
@@ -28,10 +29,13 @@ const navItems = [
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
-const Sidebar = () => {
+function SidebarContent() {
   const pathname = usePathname();
   const router = useRouter();
-  const [role, setRole] = useState<"admin" | "instructor" | "student" | null>(null);
+
+  const [role, setRole] = useState<
+    "admin" | "instructor" | "student" | null
+  >(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -54,9 +58,7 @@ const Sidebar = () => {
         error: { code?: string } | null;
       };
 
-      if (!isMounted) {
-        return;
-      }
+      if (!isMounted) return;
 
       const nextRole = normalizeRole(profileResult.data?.role ?? "student");
       setRole(nextRole);
@@ -68,9 +70,7 @@ const Sidebar = () => {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
       if (!nextSession) {
-        if (isMounted) {
-          setRole(null);
-        }
+        if (isMounted) setRole(null);
         return;
       }
 
@@ -83,9 +83,7 @@ const Sidebar = () => {
         error: { code?: string } | null;
       };
 
-      if (!isMounted) {
-        return;
-      }
+      if (!isMounted) return;
 
       setRole(normalizeRole(profileResult.data?.role ?? "student"));
     });
@@ -100,15 +98,19 @@ const Sidebar = () => {
     try {
       await supabase.auth.signOut();
     } catch {
-      // fall through to redirect without masking the route change
+      // Redirect even if sign-out encounters an error.
     }
 
     router.push("/dashboard");
   };
 
-  const assignmentHref = role === "student" ? "/student/assignments" : "/assignments";
+  const assignmentHref =
+    role === "student" ? "/student/assignments" : "/assignments";
+
   const displayNavItems = navItems.map((item) =>
-    item.label === "Assignments" ? { ...item, href: assignmentHref } : item
+    item.label === "Assignments"
+      ? { ...item, href: assignmentHref }
+      : item
   );
 
   return (
@@ -117,15 +119,20 @@ const Sidebar = () => {
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500 text-lg font-bold text-white shadow-md shadow-emerald-200">
           LMS
         </div>
+
         <div>
-          <p className="text-lg font-bold tracking-tight text-slate-900">LearnHub</p>
+          <p className="text-lg font-bold tracking-tight text-slate-900">
+            LearnHub
+          </p>
           <p className="text-xs text-slate-500">Management Suite</p>
         </div>
       </div>
 
       <nav className="flex-1 space-y-1">
         {displayNavItems.map(({ label, href, icon: Icon }) => {
-          const isActive = pathname === href || (href === "/dashboard" && pathname === "/");
+          const isActive =
+            pathname === href ||
+            (href === "/dashboard" && pathname === "/");
 
           return (
             <Link
@@ -156,6 +163,16 @@ const Sidebar = () => {
       </div>
     </aside>
   );
-};
+}
 
-export default Sidebar;
+export default function Sidebar() {
+  return (
+    <Suspense
+      fallback={
+        <aside className="h-screen w-full max-w-[280px] border-r border-slate-200 bg-white" />
+      }
+    >
+      <SidebarContent />
+    </Suspense>
+  );
+}

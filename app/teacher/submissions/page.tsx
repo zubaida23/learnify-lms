@@ -164,9 +164,24 @@ export default function TeacherSubmissionsPage() {
 
       setSuccessMessage("Submission graded successfully.");
       await loadSubmissions();
-    } catch (submitError) {
+        } catch (submitError: any) {
+      const errorDetails = Object.getOwnPropertyNames(submitError ?? {}).reduce(
+        (details: Record<string, unknown>, key) => {
+          details[key] = submitError[key];
+          return details;
+        },
+        {}
+      );
+
+      console.error("Grade submission error:", errorDetails);
+
       const message =
-        submitError instanceof Error ? submitError.message : "Unable to grade submission.";
+        submitError?.message ||
+        submitError?.details ||
+        submitError?.hint ||
+        JSON.stringify(errorDetails) ||
+        "Unable to grade submission.";
+
       setError(message);
     } finally {
       setSubmittingId(null);

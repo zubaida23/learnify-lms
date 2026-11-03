@@ -99,11 +99,37 @@ export default function AssignmentsPage() {
         return;
       }
 
-      const { data: courses, error: courseError }: any = await supabase
+      const { data: profile, error: profileError }: any = await supabase
+        .from("profiles" as never)
+        .select("role")
+        .eq("id", session.user.id)
+        .single();
+
+      if (profileError) {
+        throw profileError;
+      }
+
+      const role = String(profile?.role ?? "").toLowerCase();
+
+      if (role !== "admin" && role !== "instructor") {
+        setTeacherCourses([]);
+        setAssignments([]);
+        setError("You are not allowed to manage assignments.");
+        return;
+      }
+
+      let coursesQuery: any = supabase
         .from("courses" as never)
-        .select("id, title")
-        .eq("instructor_id", session.user.id)
-        .order("created_at", { ascending: false });
+        .select("id, title");
+
+      if (role === "instructor") {
+        coursesQuery = coursesQuery.eq("instructor_id", session.user.id);
+      }
+
+      const { data: courses, error: courseError } = await coursesQuery.order(
+        "created_at",
+        { ascending: false }
+      );
 
       if (courseError) {
         throw courseError;
@@ -309,7 +335,7 @@ export default function AssignmentsPage() {
   };
 
   return (
-    <ProtectedRoute allowedRole="instructor">
+    <ProtectedRoute>
       <PageShell
         title="Assignments"
         description="Manage course assignments, publishing, and deadlines."

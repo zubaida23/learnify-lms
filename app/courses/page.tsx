@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -6,6 +7,8 @@ import { useRouter } from "next/navigation";
 import PageShell from "../components/PageShell";
 import { supabase } from "@/src/lib/supabase/client";
 import { normalizeRole } from "@/src/lib/auth";
+
+type UserRole = "admin" | "instructor" | "student";
 
 type CourseRecord = {
   id: string;
@@ -20,6 +23,7 @@ type CourseRecord = {
   level?: string | null;
   price?: number | string | null;
   category?: string | null;
+  instructor_id?: string | null;
 };
 
 type StudentCourse = CourseRecord & {
@@ -40,9 +44,7 @@ const formatCourseDate = (value?: string) => {
 
   const parsed = new Date(value);
 
-  if (Number.isNaN(parsed.getTime())) {
-    return "Recently";
-  }
+  if (Number.isNaN(parsed.getTime())) return "Recently";
 
   return parsed.toLocaleDateString("en-US", {
     month: "short",
@@ -54,7 +56,11 @@ const formatCourseDate = (value?: string) => {
 const formatCoursePrice = (price?: number | string | null) => {
   const numericPrice = typeof price === "string" ? Number(price) : price;
 
-  if (typeof numericPrice !== "number" || Number.isNaN(numericPrice) || numericPrice <= 0) {
+  if (
+    typeof numericPrice !== "number" ||
+    Number.isNaN(numericPrice) ||
+    numericPrice <= 0
+  ) {
     return "Free";
   }
 
@@ -65,10 +71,12 @@ const AdminCourseCatalog = ({
   courses,
   loading,
   error,
+  role,
 }: {
   courses: AdminCourse[];
   loading: boolean;
   error: string | null;
+  role: UserRole;
 }) => (
   <PageShell
     title="Courses"
@@ -78,15 +86,22 @@ const AdminCourseCatalog = ({
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="mb-5 flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-xl font-semibold text-slate-900">Course Catalog</h2>
-            <p className="text-sm text-slate-500">Latest published and draft offerings</p>
+            <h2 className="text-xl font-semibold text-slate-900">
+              Course Catalog
+            </h2>
+            <p className="text-sm text-slate-500">
+              Latest published and draft offerings
+            </p>
           </div>
-          <Link
-            href="/courses/new"
-            className="inline-flex items-center justify-center rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-200 transition hover:bg-emerald-600"
-          >
-            Add New Course
-          </Link>
+
+          {role === "admin" && (
+            <Link
+              href="/courses/new"
+              className="inline-flex items-center justify-center rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-200 transition hover:bg-emerald-600"
+            >
+              Add New Course
+            </Link>
+          )}
         </div>
 
         {error ? (
@@ -101,7 +116,9 @@ const AdminCourseCatalog = ({
           </div>
         ) : courses.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-8 text-center">
-            <h3 className="text-lg font-semibold text-slate-900">No courses available</h3>
+            <h3 className="text-lg font-semibold text-slate-900">
+              No courses available
+            </h3>
             <p className="mt-2 text-sm text-slate-500">
               New course records will appear here once they are added.
             </p>
@@ -111,20 +128,35 @@ const AdminCourseCatalog = ({
             {courses.map((course) => (
               <div
                 key={course.id}
-                className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4"
+                className="flex flex-col justify-between gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center"
               >
                 <div>
-                  <p className="font-semibold text-slate-900">{course.title}</p>
+                  <p className="font-semibold text-slate-900">
+                    {course.title}
+                  </p>
+
                   <p className="text-sm text-slate-500">
                     {formatCourseStatus(course.status)}
                   </p>
+
                   <p className="mt-1 text-[11px] uppercase tracking-[0.12em] text-slate-400">
-                    {course.level ? course.level : "beginner"} • {course.category || "General"} • {formatCoursePrice(course.price)} • {formatCourseDate(course.created_at)}
+                    {course.level || "beginner"} •{" "}
+                    {course.category || "General"} •{" "}
+                    {formatCoursePrice(course.price)} •{" "}
+                    {formatCourseDate(course.created_at)}
                   </p>
+
+                  <span className="mt-2 inline-block rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                    {course.enrollmentCount} students
+                  </span>
                 </div>
-                <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                  {course.enrollmentCount} students
-                </span>
+
+                <Link
+                  href={`/courses/${course.id}/lessons`}
+                  className="inline-flex items-center justify-center rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600"
+                >
+                  Manage Lessons
+                </Link>
               </div>
             ))}
           </div>
@@ -132,14 +164,20 @@ const AdminCourseCatalog = ({
       </div>
 
       <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h3 className="text-lg font-semibold text-slate-900">Quick Actions</h3>
+        <h3 className="text-lg font-semibold text-slate-900">
+          Quick Actions
+        </h3>
+
         <div className="mt-4 space-y-3">
-          <Link
-            href="/courses/new"
-            className="block rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
-          >
-            Create new course
-          </Link>
+          {role === "admin" && (
+            <Link
+              href="/courses/new"
+              className="block rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
+            >
+              Create new course
+            </Link>
+          )}
+
           <Link
             href="/dashboard"
             className="block rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-100"
@@ -154,12 +192,14 @@ const AdminCourseCatalog = ({
 
 export default function CoursesPage() {
   const router = useRouter();
-  const [role, setRole] = useState<"admin" | "instructor" | "student" | null>(null);
+
+  const [role, setRole] = useState<UserRole | null>(null);
   const [courses, setCourses] = useState<StudentCourse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
   const [adminCourses, setAdminCourses] = useState<AdminCourse[]>([]);
   const [adminLoading, setAdminLoading] = useState(true);
   const [adminError, setAdminError] = useState<string | null>(null);
@@ -167,7 +207,7 @@ export default function CoursesPage() {
   useEffect(() => {
     let isMounted = true;
 
-    const loadStudentView = async () => {
+    const loadCourses = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -184,68 +224,83 @@ export default function CoursesPage() {
         .select("role")
         .eq("id", session.user.id)
         .maybeSingle()) as {
-        data: { role?: "admin" | "instructor" | "student" } | null;
+        data: { role?: UserRole } | null;
         error: { code?: string; message?: string } | null;
       };
 
       if (!isMounted) return;
-
-      const nextRole = normalizeRole(profileResult.data?.role ?? "student");
-      setRole(nextRole);
 
       if (profileResult.error && profileResult.error.code !== "PGRST116") {
         router.replace("/signin");
         return;
       }
 
+      const nextRole = normalizeRole(
+        profileResult.data?.role ?? "student"
+      ) as UserRole;
+
+      setRole(nextRole);
+
       if (nextRole !== "student") {
         try {
           setAdminLoading(true);
           setAdminError(null);
 
-          const { data: courseRows, error: courseError } = (await supabase
+          let courseQuery = supabase
             .from("courses" as never)
-            .select("id, title, status, level, price, category, created_at")
+            .select(
+              "id, title, status, level, price, category, created_at, instructor_id"
+            );
+
+          if (nextRole === "instructor") {
+            courseQuery = courseQuery.eq(
+              "instructor_id",
+              session.user.id
+            ) as typeof courseQuery;
+          }
+
+          const { data: courseRows, error: courseError } = (await courseQuery
             .order("created_at", { ascending: false })) as {
             data: CourseRecord[] | null;
             error: { message?: string } | null;
           };
 
-          if (courseError) {
-            throw courseError;
-          }
+          if (courseError) throw courseError;
 
           const enrollmentCounts: Record<string, number> = {};
 
-          try {
-            const { data: enrollmentRows, error: enrollmentError } = (await supabase
+          const { data: enrollmentRows, error: enrollmentError } =
+            (await supabase
               .from("enrollments" as never)
               .select("course_id")) as {
               data: { course_id: string }[] | null;
               error: { message?: string } | null;
             };
 
-            if (!enrollmentError && enrollmentRows) {
-              enrollmentRows.forEach((row) => {
-                if (!row.course_id) return;
-                enrollmentCounts[row.course_id] = (enrollmentCounts[row.course_id] ?? 0) + 1;
-              });
-            }
-          } catch {
-            // Ignore enrollment count failures so the page remains usable even if the table is inaccessible.
+          if (!enrollmentError && enrollmentRows) {
+            enrollmentRows.forEach((row) => {
+              if (!row.course_id) return;
+
+              enrollmentCounts[row.course_id] =
+                (enrollmentCounts[row.course_id] ?? 0) + 1;
+            });
           }
 
-          const builtCourses: AdminCourse[] = (courseRows ?? []).map((course) => ({
-            ...course,
-            enrollmentCount: enrollmentCounts[course.id] ?? 0,
-          }));
+          const builtCourses: AdminCourse[] = (courseRows ?? []).map(
+            (course) => ({
+              ...course,
+              enrollmentCount: enrollmentCounts[course.id] ?? 0,
+            })
+          );
 
           if (isMounted) {
             setAdminCourses(builtCourses);
           }
         } catch (loadError) {
           const message =
-            loadError instanceof Error ? loadError.message : "Unable to load courses.";
+            loadError instanceof Error
+              ? loadError.message
+              : "Unable to load courses.";
 
           if (isMounted) {
             setAdminError(message);
@@ -256,6 +311,7 @@ export default function CoursesPage() {
             setAdminLoading(false);
           }
         }
+
         return;
       }
 
@@ -263,26 +319,25 @@ export default function CoursesPage() {
         setLoading(true);
         setError(null);
 
-        const { data: publishedCourses, error: fetchError } = (await supabase
-          .from("courses" as never)
-          .select(
-            "id, title, description, short_description, thumbnail_url, status, is_published, created_at, slug"
-          )
-          .eq("status", "published")
-          .eq("is_published", true)
-          .order("created_at", { ascending: false })) as {
-          data: CourseRecord[] | null;
-          error: { message?: string } | null;
-        };
+        const { data: publishedCourses, error: fetchError } =
+          (await supabase
+            .from("courses" as never)
+            .select(
+              "id, title, description, short_description, thumbnail_url, status, is_published, created_at, slug"
+            )
+            .eq("status", "published")
+            .eq("is_published", true)
+            .order("created_at", { ascending: false })) as {
+            data: CourseRecord[] | null;
+            error: { message?: string } | null;
+          };
 
-        if (fetchError) {
-          throw fetchError;
-        }
+        if (fetchError) throw fetchError;
 
         let userEnrollments: { course_id: string }[] = [];
 
-        try {
-          const { data: enrollmentRows, error: enrollmentError } = (await supabase
+        const { data: enrollmentRows, error: enrollmentError } =
+          (await supabase
             .from("enrollments" as never)
             .select("course_id")
             .eq("student_id", session.user.id)) as {
@@ -290,18 +345,17 @@ export default function CoursesPage() {
             error: { message?: string } | null;
           };
 
-          if (!enrollmentError && enrollmentRows) {
-            userEnrollments = enrollmentRows;
-          }
-        } catch {
-          userEnrollments = [];
+        if (!enrollmentError && enrollmentRows) {
+          userEnrollments = enrollmentRows;
         }
 
         const enrolledCourseIds = new Set(
           userEnrollments.map((enrollment) => enrollment.course_id)
         );
 
-        const builtCourses: StudentCourse[] = (publishedCourses ?? []).map((course) => ({
+        const builtCourses: StudentCourse[] = (
+          publishedCourses ?? []
+        ).map((course) => ({
           ...course,
           enrolled: enrolledCourseIds.has(course.id),
         }));
@@ -311,7 +365,9 @@ export default function CoursesPage() {
         }
       } catch (loadError) {
         const message =
-          loadError instanceof Error ? loadError.message : "Unable to load published courses.";
+          loadError instanceof Error
+            ? loadError.message
+            : "Unable to load published courses.";
 
         if (isMounted) {
           setError(message);
@@ -324,7 +380,7 @@ export default function CoursesPage() {
       }
     };
 
-    loadStudentView();
+    loadCourses();
 
     return () => {
       isMounted = false;
@@ -336,21 +392,25 @@ export default function CoursesPage() {
     setNotice(null);
 
     try {
-      const { error } = (await supabase.rpc("create_enrollment_for_student", {
-        p_course_id: courseId,
-      } as never)) as {
+      const { error } = (await supabase.rpc(
+        "create_enrollment_for_student",
+        {
+          p_course_id: courseId,
+        } as never
+      )) as {
         error: { message?: string } | null;
       };
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       setCourses((currentCourses) =>
         currentCourses.map((course) =>
-          course.id === courseId ? { ...course, enrolled: true } : course
+          course.id === courseId
+            ? { ...course, enrolled: true }
+            : course
         )
       );
+
       setNotice("Enrollment successful.");
     } catch (enrollError) {
       const message =
@@ -380,24 +440,28 @@ export default function CoursesPage() {
         courses={adminCourses}
         loading={adminLoading}
         error={adminError}
+        role={role}
       />
     );
   }
 
   return (
-    <PageShell title="Courses" description="Explore published learning opportunities.">
+    <PageShell
+      title="Courses"
+      description="Explore published learning opportunities."
+    >
       <div className="space-y-4">
-        {error ? (
+        {error && (
           <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
-        ) : null}
+        )}
 
-        {notice ? (
+        {notice && (
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
             {notice}
           </div>
-        ) : null}
+        )}
 
         {loading ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
@@ -405,7 +469,9 @@ export default function CoursesPage() {
           </div>
         ) : courses.length === 0 ? (
           <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
-            <h3 className="text-lg font-semibold text-slate-900">No published courses available</h3>
+            <h3 className="text-lg font-semibold text-slate-900">
+              No published courses available
+            </h3>
             <p className="mt-2 text-sm text-slate-500">
               New learning programs will appear here when they are published.
             </p>
@@ -434,32 +500,40 @@ export default function CoursesPage() {
 
                   <div className="flex h-full flex-col p-5">
                     <div className="mb-3 flex items-start justify-between gap-3">
-                      <h3 className="text-lg font-semibold text-slate-900">{course.title}</h3>
+                      <h3 className="text-lg font-semibold text-slate-900">
+                        {course.title}
+                      </h3>
+
                       <span className="rounded-full bg-emerald-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
                         Published
                       </span>
                     </div>
 
                     <p className="flex-1 text-sm leading-6 text-slate-600">
-                      {course.description || course.short_description || "No description available."}
+                      {course.description ||
+                        course.short_description ||
+                        "No description available."}
                     </p>
 
-                    <button
-                      type="button"
-                      onClick={() => handleEnroll(course.id)}
-                      disabled={Boolean(actionLoadingId) || isEnrolled}
-                      className={`mt-auto w-full inline-flex items-center justify-center rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
-                        isEnrolled
-                          ? "cursor-default border border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : "bg-emerald-500 text-white shadow-sm shadow-emerald-200 hover:bg-emerald-600"
-                      } ${Boolean(actionLoadingId) ? "opacity-70" : ""}`}
-                    >
-                      {actionLoadingId === course.id
-                        ? "Enrolling..."
-                        : isEnrolled
-                          ? "Enrolled"
+                    {isEnrolled ? (
+                      <Link
+                        href={`/learn/${course.id}`}
+                        className="mt-4 inline-flex w-full items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-700 hover:bg-emerald-100"
+                      >
+                        Continue Learning
+                      </Link>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleEnroll(course.id)}
+                        disabled={Boolean(actionLoadingId)}
+                        className="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-200 transition hover:bg-emerald-600 disabled:opacity-70"
+                      >
+                        {actionLoadingId === course.id
+                          ? "Enrolling..."
                           : "Enroll"}
-                    </button>
+                      </button>
+                    )}
                   </div>
                 </article>
               );
