@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -5,12 +6,18 @@ import { useEffect, useState } from "react";
 import { normalizeRole } from "@/src/lib/auth";
 import { supabase } from "@/src/lib/supabase/client";
 
+type Role = "admin" | "instructor" | "student";
+
+type ProfileData = {
+  role: string;
+};
+
 export default function ProtectedRoute({
   children,
   allowedRole,
 }: {
   children: React.ReactNode;
-  allowedRole?: "admin" | "instructor" | "student";
+  allowedRole?: Role | Role[];
 }) {
   const router = useRouter();
   const [isReady, setIsReady] = useState(false);
@@ -18,15 +25,11 @@ export default function ProtectedRoute({
   useEffect(() => {
     let isMounted = true;
 
-    async function loadSession() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!isMounted) {
-        return;
-      }
-
+    async function checkAccess(
+      session: Awaited<
+        ReturnType<typeof supabase.auth.getSession>
+      >["data"]["session"]
+    ) {
       if (!session) {
         router.replace("/signin");
         return;
@@ -37,27 +40,32 @@ export default function ProtectedRoute({
         .select("role")
         .eq("id", session.user.id)
         .maybeSingle()) as {
-        data: { role?: string } | null;
-        error: { code?: string } | null;
+        data: ProfileData | null;
+        error: { message: string } | null;
       };
 
-      if (!isMounted) {
-        return;
-      }
+      if (!isMounted) return;
 
       if (profileResult.error || !profileResult.data) {
         router.replace("/signin");
         return;
       }
 
-      const role = normalizeRole(profileResult.data.role);
-      if (allowedRole && role !== allowedRole) {
+      const role = normalizeRole(profileResult.data.role) as Role;
+
+      const allowedRoles = Array.isArray(allowedRole)
+        ? allowedRole
+        : allowedRole
+          ? [allowedRole]
+          : [];
+
+      if (allowedRoles.length > 0 && !allowedRoles.includes(role)) {
         router.replace(
           role === "admin"
             ? "/dashboard"
             : role === "instructor"
-            ? "/teacher/dashboard"
-            : "/student/dashboard"
+              ? "/teacher/dashboard"
+              : "/student/dashboard"
         );
         return;
       }
@@ -65,11 +73,21 @@ export default function ProtectedRoute({
       setIsReady(true);
     }
 
+    async function loadSession() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (isMounted) {
+        await checkAccess(session);
+      }
+    }
+
     loadSession();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session) {
         if (isMounted) {
           router.replace("/signin");
@@ -77,39 +95,7 @@ export default function ProtectedRoute({
         return;
       }
 
-      const profileResult = (await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", session.user.id)
-        .maybeSingle()) as {
-        data: { role?: string } | null;
-        error: { code?: string } | null;
-      };
-
-      if (!isMounted) {
-        return;
-      }
-
-      if (profileResult.error || !profileResult.data) {
-        router.replace("/signin");
-        return;
-      }
-
-      const role = normalizeRole(profileResult.data.role);
-      if (allowedRole && role !== allowedRole) {
-        router.replace(
-          role === "admin"
-            ? "/dashboard"
-            : role === "instructor"
-            ? "/teacher/dashboard"
-            : "/student/dashboard"
-        );
-        return;
-      }
-
-      if (isMounted) {
-        setIsReady(true);
-      }
+      void checkAccess(session);
     });
 
     return () => {

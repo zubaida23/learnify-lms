@@ -1,6 +1,15 @@
+
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export type ProfileRole = "admin" | "instructor" | "student";
+
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[];
 
 export type Database = {
   public: {
@@ -39,7 +48,9 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
+
       courses: {
         Row: {
           id: string;
@@ -89,7 +100,9 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
+
       assignments: {
         Row: {
           id: string;
@@ -127,7 +140,9 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
+
       assignment_submissions: {
         Row: {
           id: string;
@@ -171,7 +186,9 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
+
       enrollments: {
         Row: {
           id: string;
@@ -206,15 +223,126 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
+      };
+
+      quizzes: {
+        Row: {
+          id: string;
+          course_id: string | null;
+          lesson_id: string | null;
+          title: string;
+          description: string | null;
+          instructions: string | null;
+          passing_score: number;
+          time_limit_minutes: number | null;
+          attempts_allowed: number;
+          is_published: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          course_id?: string | null;
+          lesson_id?: string | null;
+          title: string;
+          description?: string | null;
+          instructions?: string | null;
+          passing_score?: number;
+          time_limit_minutes?: number | null;
+          attempts_allowed?: number;
+          is_published?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          course_id?: string | null;
+          lesson_id?: string | null;
+          title?: string;
+          description?: string | null;
+          instructions?: string | null;
+          passing_score?: number;
+          time_limit_minutes?: number | null;
+          attempts_allowed?: number;
+          is_published?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+
+      quiz_questions: {
+        Row: {
+          id: string;
+          quiz_id: string;
+          question_text: string;
+          question_type: string;
+          options: Json | null;
+          points: number;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          quiz_id: string;
+          question_text: string;
+          question_type: string;
+          options?: Json | null;
+          points?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          quiz_id?: string;
+          question_text?: string;
+          question_type?: string;
+          options?: Json | null;
+          points?: number;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
       };
     };
+
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+
+
+Functions: {
+  submit_quiz_attempt: {
+    Args: {
+      p_quiz_id: string;
+      p_answers: Json;
+    };
+    Returns: Json;
+  };
+
+  create_enrollment_for_student: {
+    Args: {
+      p_course_id: string;
+    };
+    Returns: Json;
+  };
+
+  record_lesson_progress: {
+    Args: {
+      p_lesson_id: string;
+      p_status: string;
+      p_progress_percent: number;
+    };
+    Returns: Json;
+  };
+};
+
+
     Enums: Record<string, never>;
   };
 };
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
 const supabaseKey =
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
   process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
