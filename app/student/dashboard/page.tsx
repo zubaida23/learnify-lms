@@ -132,7 +132,7 @@ export default function StudentDashboardPage() {
   const [activityLoading, setActivityLoading] = useState(true);
   const [activityError, setActivityError] = useState<string | null>(null);
 
-  // Load actual enrolled courses from Supabase
+  // Load enrolled courses
   useEffect(() => {
     const loadEnrolledCourses = async () => {
       setCoursesLoading(true);
@@ -189,7 +189,7 @@ export default function StudentDashboardPage() {
     void loadEnrolledCourses();
   }, []);
 
-  // Load upcoming assignments from Supabase
+  // Load upcoming assignments
   useEffect(() => {
     const loadUpcomingAssignments = async () => {
       setAssignmentsLoading(true);
@@ -226,12 +226,13 @@ export default function StudentDashboardPage() {
           return;
         }
 
-        const { data: assignmentRows, error: assignmentError } = await supabase
-          .from("assignments")
-          .select("id, title, due_date")
-          .in("course_id", courseIds)
-          .eq("is_published", true)
-          .order("due_date", { ascending: true, nullsFirst: false });
+        const { data: assignmentRows, error: assignmentError } =
+          await supabase
+            .from("assignments")
+            .select("id, title, due_date")
+            .in("course_id", courseIds)
+            .eq("is_published", true)
+            .order("due_date", { ascending: true, nullsFirst: false });
 
         if (assignmentError) throw assignmentError;
 
@@ -256,8 +257,17 @@ export default function StudentDashboardPage() {
 
         if (submissionError) throw submissionError;
 
+        // TypeScript fix for assignment submissions
+        const submissionRows = (submissions ?? []) as unknown as {
+          assignment_id: string;
+          status: string | null;
+        }[];
+
         const submissionMap = new Map(
-          (submissions ?? []).map((item) => [item.assignment_id, item.status])
+          submissionRows.map((item) => [
+            item.assignment_id,
+            item.status,
+          ])
         );
 
         const pendingAssignments = assignments
@@ -282,7 +292,7 @@ export default function StudentDashboardPage() {
     void loadUpcomingAssignments();
   }, []);
 
-  // Load actual quiz results from Supabase
+  // Load quiz results
   useEffect(() => {
     const loadQuizResults = async () => {
       setQuizLoading(true);
@@ -346,7 +356,7 @@ export default function StudentDashboardPage() {
     void loadQuizResults();
   }, []);
 
-  // Load actual recent activity from Supabase
+  // Load recent activity
   useEffect(() => {
     const loadRecentActivity = async () => {
       setActivityLoading(true);
@@ -412,7 +422,6 @@ export default function StudentDashboardPage() {
 
         const activities: RecentActivityItem[] = [];
 
-        // Assignment submission activities
         const submissions =
           (submissionResult.data ?? []) as unknown as ActivitySubmissionRow[];
 
@@ -428,7 +437,6 @@ export default function StudentDashboardPage() {
           });
         });
 
-        // Course enrollment activities
         const enrollments =
           (enrollmentResult.data ?? []) as unknown as ActivityEnrollmentRow[];
 
@@ -444,7 +452,6 @@ export default function StudentDashboardPage() {
           });
         });
 
-        // Lesson progress activities
         const lessonProgress =
           (lessonResult.data ?? []) as unknown as ActivityLessonRow[];
 
@@ -470,7 +477,6 @@ export default function StudentDashboardPage() {
           });
         });
 
-        // Sort newest activities first and show the latest 5
         activities.sort(
           (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
         );

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import PageShell from "@/app/components/PageShell";
@@ -31,7 +31,7 @@ type LessonProgress = {
   progress_percent: number;
 };
 
-export default function LearnCoursePage() {
+function LearnCoursePageContent() {
   const params = useParams();
   const router = useRouter();
   const courseId = params.courseId as string;
@@ -406,5 +406,18 @@ export default function LearnCoursePage() {
         )}
       </div>
     </PageShell>
+  );
+}
+export default function LearnCoursePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-6 text-center">
+          Loading course...
+        </div>
+      }
+    >
+      <LearnCoursePageContent />
+    </Suspense>
   );
 }
