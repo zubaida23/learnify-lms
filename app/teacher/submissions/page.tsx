@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import ProtectedRoute from "../../auth/protected-route";
 import PageShell from "../../components/PageShell";
 import { supabase } from "@/src/lib/supabase/client";
@@ -66,7 +67,7 @@ export default function TeacherSubmissionsPage() {
       const { data: submissionRows, error: submissionError } = (await supabase
         .from("assignment_submissions" as never)
         .select(
-          "id, assignment_id, student_id, submission_text, file_url, grade, feedback_text, status, submitted_at, reviewed_at, created_at, updated_at, assignments(id, title, max_score, course_id, courses(id, title, instructor_id)), profiles(id, full_name, email)"
+          "id, assignment_id, student_id, submission_text, file_url, grade, feedback_text, status, submitted_at, reviewed_at, created_at, updated_at, assignments(id, title, max_score, course_id, courses(id, title, instructor_id))"
         )) as {
         data: any[] | null;
         error: { message?: string } | null;
@@ -79,13 +80,50 @@ export default function TeacherSubmissionsPage() {
       const filtered = (submissionRows ?? []).filter((row) => {
         const assignment = row.assignments;
         const course = assignment?.courses;
-        return !!assignment && !!course && course.instructor_id === session.user.id;
+
+        return (
+          !!assignment &&
+          !!course &&
+          course.instructor_id === session.user.id
+        );
       });
+
+      const studentIds = [
+        ...new Set(
+          filtered
+            .map((row) => row.student_id)
+            .filter((id): id is string => !!id)
+        ),
+      ];
+
+      let profiles: {
+        id: string;
+        full_name: string | null;
+        email: string | null;
+      }[] = [];
+
+      if (studentIds.length > 0) {
+        const { data: profileRows, error: profileError } = await supabase
+          .from("profiles")
+          .select("id, full_name, email")
+          .in("id", studentIds);
+
+        if (profileError) {
+          console.error("PROFILE FETCH ERROR:", profileError);
+          throw profileError;
+        }
+
+        profiles = profileRows ?? [];
+      }
+
+      const profileMap = new Map(
+        profiles.map((profile) => [profile.id, profile])
+      );
 
       const mapped = filtered.map((row) => {
         const assignment = row.assignments;
         const course = assignment?.courses;
-        const student = row.profiles;
+        const student = profileMap.get(row.student_id);
 
         return {
           id: row.id,
@@ -109,7 +147,11 @@ export default function TeacherSubmissionsPage() {
       setSubmissions(mapped);
     } catch (loadError) {
       const message =
-        loadError instanceof Error ? loadError.message : "Unable to load submissions.";
+        loadError instanceof Error
+          ? loadError.message
+          : "Unable to load submissions.";
+
+      console.error("LOAD SUBMISSIONS ERROR:", loadError);
       setError(message);
       setSubmissions([]);
     } finally {
@@ -136,7 +178,10 @@ export default function TeacherSubmissionsPage() {
       return;
     }
 
-    const submission = submissions.find((item) => item.id === submissionId);
+    const submission = submissions.find(
+      (item) => item.id === submissionId
+    );
+
     if (!submission) {
       setError("Submission not found.");
       return;
@@ -152,20 +197,26 @@ export default function TeacherSubmissionsPage() {
     setSuccessMessage(null);
 
     try {
-      const { error } = await (supabase.rpc as any)("grade_assignment_submission", {
-        p_submission_id: submissionId,
-        p_grade: parsedGrade,
-        p_feedback_text: trimmedFeedback || null,
-      });
+      const { error } = await (supabase.rpc as any)(
+        "grade_assignment_submission",
+        {
+          p_submission_id: submissionId,
+          p_grade: parsedGrade,
+          p_feedback_text: trimmedFeedback || null,
+        }
+      );
 
       if (error) {
         throw error;
       }
 
       setSuccessMessage("Submission graded successfully.");
+
       await loadSubmissions();
-        } catch (submitError: any) {
-      const errorDetails = Object.getOwnPropertyNames(submitError ?? {}).reduce(
+    } catch (submitError: any) {
+      const errorDetails = Object.getOwnPropertyNames(
+        submitError ?? {}
+      ).reduce(
         (details: Record<string, unknown>, key) => {
           details[key] = submitError[key];
           return details;
@@ -214,7 +265,9 @@ export default function TeacherSubmissionsPage() {
             </div>
           ) : !hasSubmissions ? (
             <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center">
-              <h3 className="text-lg font-semibold text-slate-900">No submissions yet</h3>
+              <h3 className="text-lg font-semibold text-slate-900">
+                No submissions yet
+              </h3>
               <p className="mt-2 text-sm text-slate-500">
                 Student submissions for your assignments will appear here.
               </p>
@@ -237,6 +290,7 @@ export default function TeacherSubmissionsPage() {
                       <h3 className="mt-3 text-lg font-semibold text-slate-900">
                         {submission.student_name ?? "Unknown student"}
                       </h3>
+
                       <p className="text-sm text-slate-500">
                         {submission.student_email ?? "No email available"}
                       </p>
@@ -246,8 +300,11 @@ export default function TeacherSubmissionsPage() {
                       <span className="rounded-full bg-white px-3 py-1.5 ring-1 ring-slate-200">
                         {submission.status}
                       </span>
+
                       <span className="rounded-full bg-white px-3 py-1.5 ring-1 ring-slate-200">
-                        {submission.grade !== null ? `Grade: ${submission.grade}` : "Ungraded"}
+                        {submission.grade !== null
+                          ? `Grade: ${submission.grade}`
+                          : "Ungraded"}
                       </span>
                     </div>
                   </div>
@@ -257,9 +314,12 @@ export default function TeacherSubmissionsPage() {
                       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
                         Submitted response
                       </p>
+
                       <div className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                        {submission.submission_text?.trim() || "No text submission provided."}
+                        {submission.submission_text?.trim() ||
+                          "No text submission provided."}
                       </div>
+
                       {submission.file_url ? (
                         <div className="mt-4">
                           <a
@@ -280,19 +340,28 @@ export default function TeacherSubmissionsPage() {
                       </p>
 
                       <div className="mt-3 text-sm text-slate-600">
-                        <p>Submitted: {formatDate(submission.submitted_at)}</p>
-                        <p className="mt-1">Max score: {submission.max_score}</p>
+                        <p>
+                          Submitted: {formatDate(submission.submitted_at)}
+                        </p>
+                        <p className="mt-1">
+                          Max score: {submission.max_score}
+                        </p>
                       </div>
 
                       <div className="mt-4 space-y-3">
                         <label className="block text-sm font-medium text-slate-700">
                           Grade
                         </label>
+
                         <input
                           type="number"
                           min={0}
                           max={submission.max_score}
-                          value={grading[submission.id] ?? submission.grade ?? ""}
+                          value={
+                            grading[submission.id] ??
+                            submission.grade ??
+                            ""
+                          }
                           onChange={(event) =>
                             setGrading((current) => ({
                               ...current,
@@ -306,9 +375,14 @@ export default function TeacherSubmissionsPage() {
                         <label className="block text-sm font-medium text-slate-700">
                           Feedback
                         </label>
+
                         <textarea
                           rows={3}
-                          value={feedback[submission.id] ?? submission.feedback_text ?? ""}
+                          value={
+                            feedback[submission.id] ??
+                            submission.feedback_text ??
+                            ""
+                          }
                           onChange={(event) =>
                             setFeedback((current) => ({
                               ...current,
@@ -321,11 +395,15 @@ export default function TeacherSubmissionsPage() {
 
                         <button
                           type="button"
-                          onClick={() => void handleGradeSubmit(submission.id)}
+                          onClick={() =>
+                            void handleGradeSubmit(submission.id)
+                          }
                           disabled={submittingId === submission.id}
                           className="w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
                         >
-                          {submittingId === submission.id ? "Submitting..." : "Save grade"}
+                          {submittingId === submission.id
+                            ? "Submitting..."
+                            : "Save grade"}
                         </button>
                       </div>
                     </div>

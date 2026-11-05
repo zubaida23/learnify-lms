@@ -1,5 +1,5 @@
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from "@supabase/supabase-js";
 
 export type ProfileRole = "admin" | "instructor" | "student";
 
@@ -359,7 +359,7 @@ if (!supabaseKey) {
   );
 }
 
-export const supabase: SupabaseClient<Database> = createClient<Database>(
+export const supabase = createClient<Database>(
   supabaseUrl,
   supabaseKey,
   {
